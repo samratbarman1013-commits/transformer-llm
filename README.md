@@ -13,12 +13,12 @@ localStorage only — nothing is sent anywhere, ever.
 
 | Piece | What it does |
 |---|---|
-| `transformer/` | Model, char tokenizer, training, chat CLI, ONNX export |
+| `transformer/` | Model, char + BPE tokenizers, training, chat CLI, ONNX export |
 | `agent/` | Tool registry (calculator, Python sandbox, clock, pluggable web search) + the agent loop |
 | `server/` | FastAPI app: `/chat`, `/tools`, `/health` |
 | `web/` | Sarvam-style chat PWA — model runs client-side, history stays on-device, works offline (service worker) |
 | `android/` | WebView shell → real APK, built in CI |
-| `.github/workflows/` | Auto-deploy the website, and build the APK in the cloud |
+| `.github/workflows/` | Deploy the site, build the APK, and run the 150M self-chaining training |
 
 ## Quickstart
 
@@ -53,6 +53,7 @@ Decoder-only GPT: pre-LayerNorm blocks, multi-head causal attention
 | `proto-1m` ✅ | 128 | 5 | 256 | 1.0M |
 | `small-15m` | 384 | 8 | 512 | 15M |
 | `base-50m` | 512 | 16 | 1024 | 50M |
+| `ci-150m` 🚀 | 896 | 14 | 512 | 165M |
 | `target-500m` | 1024 | 40 | 2048 | 500M |
 
 Prototype facts: char-level tokenizer (65 symbols), trained on
@@ -82,11 +83,10 @@ by the service worker for offline use).
 ## Roadmap
 
 1. ✅ 1M prototype: train → export → in-browser inference
-2. 🚀 **500M pretraining — in progress**: see **[TRAINING_500M.md](TRAINING_500M.md)** and the self-resuming [Colab notebook](notebooks/train_500m_colab.ipynb) (2.6B tokens, ~10–12 days on a T4, DDP ready)
-3. ⬜ 15M config on a curated web/chat corpus + BPE tokenizer
-4. ⬜ 50M config: real instruction following, learned tool-calling (replaces the deterministic router in `agent/tools.py`)
-5. ⬜ 500M `target-500m`: GPU training, LoRA fine-tuning, DPO alignment
-6. ⬜ Desktop shells (Tauri/Electron) using the same ONNX core
+2. 🚀 **150M `ci-150m` — training now on GitHub Actions**: fully autonomous chunked chain (`.github/workflows/build-150m.yml`) with an hourly supervisor; final model publishes to release `v0.2.0`
+3. ⬜ 500M pretraining — see **[TRAINING_500M.md](TRAINING_500M.md)** and the self-resuming [Colab notebook](notebooks/train_500m_colab.ipynb) (needs a GPU)
+4. ⬜ SFT: chat + tool-calling fine-tune (replaces the deterministic router in `agent/tools.py`), then DPO
+5. ⬜ Desktop shells (Tauri/Electron) using the same ONNX core
 
 ## License
 
