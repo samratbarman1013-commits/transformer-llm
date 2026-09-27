@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# trained checkpoints stay out of git (retrain: python -m transformer.train)
+checkpoints/*.pt
+
+# training data is fetched by the quickstart / CI, not stored
+data/
+
+# misc
+*.log
+.DS_Store
