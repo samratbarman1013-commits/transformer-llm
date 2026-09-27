@@ -11,6 +11,7 @@ class ModelConfig:
     n_heads: int = 4          # attention heads (d_model must be divisible)
     ctx: int = 256            # context window (tokens)
     dropout: float = 0.0      # 0.0 for tiny models; raise when scaling up
+    gradient_checkpointing: bool = False  # trade compute for memory (big configs)
 
 
 # --- Ladder of configs on the same architecture -------------------------
