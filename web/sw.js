@@ -1,6 +1,6 @@
 /* Service worker: cache-first for the app shell + model, so Transformer
- * works offline after the first load. */
-const CACHE = "transformer-v1";
+ * works offline after the first load. v2 = dark UI. */
+const CACHE = "transformer-v2";
 const CORE = ["./", "index.html", "app.js", "manifest.json",
   "model/model.onnx", "model/vocab.json",
   "icons/icon-192.png", "icons/icon-512.png"];
