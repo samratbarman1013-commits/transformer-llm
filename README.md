@@ -82,10 +82,11 @@ by the service worker for offline use).
 ## Roadmap
 
 1. ✅ 1M prototype: train → export → in-browser inference
-2. ⬜ 15M config on a curated web/chat corpus + BPE tokenizer
-3. ⬜ 50M config: real instruction following, learned tool-calling (replaces the deterministic router in `agent/tools.py`)
-4. ⬜ 500M `target-500m`: GPU training, LoRA fine-tuning, DPO alignment
-5. ⬜ Desktop shells (Tauri/Electron) using the same ONNX core
+2. 🚀 **500M pretraining — in progress**: see **[TRAINING_500M.md](TRAINING_500M.md)** and the self-resuming [Colab notebook](notebooks/train_500m_colab.ipynb) (2.6B tokens, ~10–12 days on a T4, DDP ready)
+3. ⬜ 15M config on a curated web/chat corpus + BPE tokenizer
+4. ⬜ 50M config: real instruction following, learned tool-calling (replaces the deterministic router in `agent/tools.py`)
+5. ⬜ 500M `target-500m`: GPU training, LoRA fine-tuning, DPO alignment
+6. ⬜ Desktop shells (Tauri/Electron) using the same ONNX core
 
 ## License
 
