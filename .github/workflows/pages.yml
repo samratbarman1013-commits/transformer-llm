@@ -1,0 +1,52 @@
+name: Deploy website
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'transformer/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore trained model from cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: web/model/model.onnx
+          key: transformer-1m-${{ hashFiles('transformer/*.py') }}
+
+      - name: Train and export the 1M model (first deploy only, then cached)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          pip install -r requirements.txt
+          mkdir -p data
+          curl -sL https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt -o data/tinyshakespeare.txt
+          python -m transformer.train --data data/tinyshakespeare.txt --steps 400 --batch 32 --max-seconds 1500 --eval-every 200
+          python -m transformer.export_onnx --checkpoint checkpoints/transformer_1m_best.pt --out web/model/model.onnx
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4
