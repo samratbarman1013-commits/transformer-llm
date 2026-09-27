@@ -1,0 +1,13 @@
+{
+  "name": "Transformer — on-device LLM",
+  "short_name": "Transformer",
+  "description": "A real 1M-parameter transformer LLM running fully on your device. History stays local.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#faf6f0",
+  "theme_color": "#1f1b16",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
