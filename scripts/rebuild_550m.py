@@ -21,18 +21,23 @@ def set_src(cell, text):
 # ---------- notebook ----------
 nb = json.loads(get('6ebb5e0b2e9be5a34a0863df2f72b8068f6f836d', 'notebooks/train_500m_colab.ipynb'))
 
+c0 = ''.join(nb['cells'][0]['source'])
+c0 = c0.replace(
+    "Quality English corpus: **FineWeb-Edu (~5 GB) + Python code (~1.5 GB) + TinyStories (~1 GB)**.",
+    "Quality English corpus: **English Wikipedia (~5 GB) + Python code (~1.5 GB) + TinyStories (~1 GB)**.")
+assert 'English Wikipedia' in c0, 'markdown swap failed'
+set_src(nb['cells'][0], c0)
+
 c3 = ''.join(nb['cells'][3]['source'])
 c3 = c3.replace(
     "elif os.path.exists(CORPUS):\n    print('corpus.txt present:', round(os.path.getsize(CORPUS)/1e9, 2), 'GB')\nelse:\n",
     "elif os.path.exists(CORPUS) and os.path.getsize(CORPUS) > 5_000_000_000:\n    print('corpus.txt present:', round(os.path.getsize(CORPUS)/1e9, 2), 'GB')\nelse:\n    if os.path.exists(CORPUS):\n        print('incomplete corpus found (', round(os.path.getsize(CORPUS)/1e9, 2), 'GB) - redownloading')\n")
 assert 'getsize(CORPUS) > 5_000_000_000' in c3 and 'redownloading' in c3
 c3 = c3.replace(
-    "        ds = load_dataset('HuggingFaceTB/fineweb-edu', split='train', streaming=True)\n        for ex in ds:\n",
-    "        ds = load_dataset('HuggingFaceTB/fineweb-edu', split='train', streaming=True)\n        print('downloading fineweb-edu (5 GB)... several minutes - progress every 0.5 GB below')\n        last = 0\n        for ex in ds:\n")
-assert 'downloading fineweb-edu (5 GB)' in c3
-c3 = c3.replace(
-    "            if n >= cap:\n                break\n        print('fineweb-edu:', round(n/1e9, 2), 'GB')\n",
-    "            if n >= cap:\n                break\n            if n - last >= 500_000_000:\n                last = n; print('  fineweb-edu:', round(n/1e9, 2), 'GB downloaded')\n        print('fineweb-edu:', round(n/1e9, 2), 'GB')\n")
+    "        # 1) FineWeb-Edu - high-quality educational web text (~5 GB)\n        from datasets import load_dataset\n        cap, n = 5_000_000_000, 0\n        ds = load_dataset('HuggingFaceTB/fineweb-edu', split='train', streaming=True)\n        for ex in ds:\n            t = (ex.get('text') or '').strip()\n              if len(t) < 200:\n                continue\n            out.write(t + NL); n += len(t) + 1\n            if n >= cap:\n                break\n        print('fineweb-edu:', round(n/1e9, 2), 'GB')\n",
+    "        # 1) English Wikipedia (high-quality reference text, ~5 GB)\n        from datasets import load_dataset\n        cap, n = 5_000_000_000, 0\n        ds = load_dataset('wikimedia/wikipedia', '20231101.en', split='train', streaming=True)\n        print('downloading english wikipedia (5 GB)... several minutes - progress every 0.5 GB below')\n        last = 0\n        for ex in ds:\n            t = (ex.get('text') or '').strip()\n            if len(t) < 200:\n                continue\n            out.write(t + NL); n += len(t) + 1\n            if n >= cap:\n                break\n            if n - last >= 500_000_000:\n                last = n; print('  wikipedia:', round(n/1e9, 2), 'GB downloaded')\n        print('wikipedia:', round(n/1e9, 2), 'GB')\n")
+assert "load_dataset('wikimedia/wikipedia', '20231101.en'" in c3 , 'wikipedia swap failed'
+assert 'fineweb' not in c3, 'fineweb still present'
 assert 'GB downloaded' in c3
 c3 = c3.replace(
     "        for shard in ('file-000000000001.json.gz', 'file-000000000002.json.gz'):\n            path = f'{DATA}/{shard}'\n",
@@ -50,7 +55,7 @@ c4 = c4.replace(
     "if not os.path.exists(TOK):\n",
     "if not (os.path.exists(TOK) and os.path.getsize(TOK) > 500_000):\n    if os.path.exists(TOK): print('stub tokenizer found - retraining')\n")
 assert 'getsize(TOK) > 500_000' in c4 and "reusing tokenizer from Drive" in c4
-set_src(nb['cells'][4], c4)
+set_srr(nb['cells'][4], c4)
 
 open('notebooks/train_500m_colab.ipynb', 'w').write(json.dumps(nb, indent=1))
 
