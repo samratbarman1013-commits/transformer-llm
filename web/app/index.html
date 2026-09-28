@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+<title>Transformer — chat</title>
+<meta name="description" content="Thin-client chat app for the Transformer API. The model stays on the owner's server; history stays on this device.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="../icons/icon-192.png" type="image/png">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0a;
+    --surface:#1f1f1f;
+    --bubble-user:#2b2b2b;
+    --send:#d37b3a;
+    --send-pressed:#c06e30;
+    --text:#f2f2f2;
+    --dim:#a0a0a0;
+    --faint:#6e6e6e;
+    --border:rgba(255,255,255,0.08);
+    --drawer-bg:#141414;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden}
+  body{
+    font-family:'DM Sans',-apple-system,sans-serif;
+    background:radial-gradient(1200px 800px at 70% -10%, #161311 0%, #0a0a0a 55%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    height:var(--app-height,100dvh);padding:0;overflow:hidden;overscroll-behavior:none;
+  }
+  .phone{
+    position:relative;width:100%;max-width:420px;height:var(--app-height,100dvh);
+    background:var(--bg);display:flex;flex-direction:column;overflow:hidden;
+  }
+  @media (min-width:520px){
+    body{padding:24px 24px 10px}
+    .phone{
+      height:min(880px,calc(var(--app-height,100dvh) - 96px));
+      border-radius:36px;border:1px solid rgba(255,255,255,0.09);
+      box-shadow:0 30px 80px rgba(0,0,0,0.65), 0 0 0 8px #17130f, 0 0 0 9px rgba(255,255,255,0.06);
+    }
+    .caption{display:none}
+  }
+  @media (max-width:519px){ .caption{display:none} }
+
+  .topnav{
+    flex:0 0 auto;display:flex;align-items:center;gap:6px;
+    padding:10px 12px 10px 10px;
+  }
+  .topnav .title{
+    font-size:18px;font-weight:500;color:var(--text);
+    margin-left:2px;flex:1;min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .statusdot{
+    width:9px;height:9px;border-radius:50%;flex:0 0 auto;margin-right:2px;
+    background:var(--faint);transition:background .3s;
+  }
+  .statusdot.loading{background:#d3a53a;animation:pulse 1.4s infinite}
+  .statusdot.ready{background:#4caf6e}
+  .statusdot.error{background:#d35a3a}
+  @keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
+  .iconbtn{
+    display:flex;align-items:center;justify-content:center;
+    width:42px;height:42px;border:none;border-radius:50%;
+    background:transparent;color:var(--dim);cursor:pointer;
+    transition:background .15s ease,color .15s ease;flex:0 0 auto;
+  }
+  .iconbtn:hover{background:rgba(255,255,255,0.07);color:var(--text)}
+  .iconbtn:active{background:rgba(255,255,255,0.12)}
+  .iconbtn--round{background:rgba(255,255,255,0.08);color:var(--text)}
+  .iconbtn--round:hover{background:rgba(255,255,255,0.14)}
+
+  .chat{
+    flex:1 1 auto;overflow-y:auto;padding:6px 16px 18px;
+    display:flex;flex-direction:column;gap:20px;
+  }
+  .chat::-webkit-scrollbar{width:0}
+  .msg-user{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .msg-user .bubble{
+    background:var(--bubble-user);color:var(--text);
+    padding:10px 16px;border-radius:20px 20px 6px 20px;
+    font-size:14px;max-width:80%;
+    overflow-wrap:break-word;white-space:pre-wrap;
+  }
+  .msg-user .copy{
+    display:flex;align-items:center;gap:5px;
+    background:none;border:none;color:var(--faint);cursor:pointer;
+    font-size:12px;font-family:inherit;padding:2px 6px;border-radius:8px;
+  }
+  .msg-user .copy:hover{color:var(--dim)}
+  .msg-user .copy svg{opacity:.8}
+  .msg-ai{display:flex;flex-direction:column;gap:10px}
+  .ai-text{
+    color:var(--text);font-size:16px;font-weight:500;line-height:1.5;
+    max-width:92%;overflow-wrap:break-word;white-space:pre-wrap;
+  }
+  .msg-sys{
+    color:var(--faint);font-size:12.5px;line-height:1.6;max-width:88%;
+    align-self:flex-start;background:rgba(255,255,255,0.04);
+    padding:9px 14px;border-radius:14px;
+  }
+  .actions{display:flex;gap:4px;margin-top:2px}
+  .actions .act{
+    display:flex;align-items:center;justify-content:center;
+    width:38px;height:38px;border-radius:50%;border:none;background:none;
+    color:var(--faint);cursor:pointer;transition:background .15s,color .15s;
+  }
+  .actions .act:hover{background:rgba(255,255,255,0.07);color:var(--dim)}
+  .typing{display:flex;gap:5px;padding:12px 2px}
+  .typing span{
+    width:8px;height:8px;border-radius:50%;background:var(--faint);
+    animation:blink 1.2s infinite;
+  }
+  .typing span:nth-child(2){animation-delay:.18s}
+  .typing span:nth-child(3){animation-delay:.36s}
+  @keyframes blink{0%,80%,100%{opacity:.25;transform:scale(.9)}40%{opacity:1;transform:scale(1)}}
+
+  .hello{display:flex;flex-direction:column;align-items:center;text-align:center;padding:34px 10px 10px}
+  .hello .mark{
+    width:64px;height:64px;border-radius:20px;margin-bottom:20px;
+    background:linear-gradient(135deg,#d37b3a,#f2a33c);
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:700;font-size:34px;
+    box-shadow:0 10px 30px rgba(211,123,58,.28);
+  }
+  .hello h1{font-size:22px;font-weight:700;color:var(--text);margin-bottom:8px}
+  .hello p{color:var(--dim);font-size:13.5px;line-height:1.6;max-width:300px}
+
+  .inputbar{
+    flex:0 0 auto;padding:8px 14px calc(14px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top, var(--bg) 65%, transparent);
+  }
+  .input-pill{
+    display:flex;align-items:center;gap:6px;
+    background:var(--surface);border-radius:28px;padding:7px 7px 7px 6px;
+  }
+  .input-pill input{
+    flex:1;min-width:0;background:none;border:none;outline:none;
+    color:var(--text);font-family:inherit;font-size:14.5px;padding:0 4px;
+  }
+  .input-pill input::placeholder{color:var(--faint)}
+  .sendbtn{
+    width:40px;height:40px;border-radius:50%;border:none;flex:0 0 auto;
+    background:var(--send);color:#fff;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:background .15s,transform .1s;
+  }
+  .sendbtn:hover{background:var(--send-pressed)}
+  .sendbtn:active{transform:scale(.93)}
+
+  .overlay{
+    position:absolute;inset:0;background:rgba(0,0,0,0.55);
+    opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:40;
+  }
+  .overlay.show{opacity:1;pointer-events:auto}
+  .drawer{
+    position:absolute;top:0;left:0;bottom:0;width:290px;max-width:82%;
+    background:var(--drawer-bg);z-index:50;
+    transform:translateX(-102%);transition:transform .28s cubic-bezier(.2,.8,.2,1);
+    display:flex;flex-direction:column;border-right:1px solid var(--border);
+  }
+  .drawer.show{transform:translateX(0)}
+  .drawer-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 16px 12px;
+  }
+  .drawer-head .brand{font-size:19px;font-weight:700;color:var(--text);letter-spacing:.2px}
+  .drawer-head .close{
+    border:none;background:none;color:var(--dim);width:38px;height:38px;border-radius:50%;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .drawer-head .close:hover{background:rgba(255,255,255,0.08)}
+  .newchat{
+    margin:4px 12px 14px;display:flex;align-items:center;gap:12px;
+    background:rgba(255,255,255,0.07);border:none;border-radius:24px;
+    padding:11px 16px;color:var(--text);font-family:inherit;font-size:15px;font-weight:500;
+    cursor:pointer;transition:background .15s;
+  }
+  .newchat:hover{background:rgba(255,255,255,0.12)}
+  .drawer .hist-label{
+    color:var(--faint);font-size:11.5px;font-weight:700;letter-spacing:1px;
+    text-transform:uppercase;padding:4px 22px 8px;
+  }
+  .hist{flex:1;overflow-y:auto;padding-bottom:8px}
+  .hist::-webkit-scrollbar{width:0}
+  .hist-item{
+    display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+    background:none;border:none;cursor:pointer;font-family:inherit;
+    padding:7px 20px;color:var(--dim);font-size:14px;
+    transition:background .15s,color .15s;
+  }
+  .hist-item:hover{background:rgba(255,255,255,0.06);color:var(--text)}
+  .hist-item.active{background:rgba(211,123,58,0.14);color:var(--text)}
+  .hist-item.active svg{color:var(--send)}
+  .hist-item svg{flex:0 0 auto;opacity:.75}
+  .hist-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hist-item .pin-btn{
+    margin-left:auto;flex:0 0 auto;width:32px;height:32px;border-radius:50%;
+    border:none;background:none;color:var(--faint);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:background .15s,color .15s,opacity .15s;opacity:.55;
+  }
+  .hist-item .pin-btn:hover{background:rgba(255,255,255,0.09);color:var(--text);opacity:1}
+  .hist-item .pin-btn svg{opacity:1}
+  .hist-item.pinned{color:var(--text)}
+  .hist-item.pinned .pin-btn{color:var(--send);opacity:1}
+  #pinList{flex:0 1 auto;max-height:42%;overflow-y:auto}
+  #pinList[hidden]{display:none}
+  #pinLabel[hidden]{display:none}
+  .drawer .foot{
+    padding:10px 22px 16px;color:var(--faint);font-size:11px;line-height:1.5;
+    border-top:1px solid var(--border);flex:0 0 auto;
+  }
+
+  .menu{
+    position:absolute;top:96px;right:12px;z-index:60;min-width:210px;
+    background:#232323;border:1px solid var(--border);border-radius:14px;
+    padding:7px;box-shadow:0 16px 44px rgba(0,0,0,0.6);
+    opacity:0;transform:scale(.94) translateY(-6px);transform-origin:top right;
+    pointer-events:none;transition:opacity .16s ease,transform .16s ease;
+  }
+  .menu.show{opacity:1;transform:none;pointer-events:auto}
+  .menu button{
+    display:flex;align-items:center;gap:12px;width:100%;
+    background:none;border:none;cursor:pointer;font-family:inherit;
+    color:var(--dim);font-size:14.5px;padding:11px 12px;border-radius:9px;
+  }
+  .menu button:hover{background:rgba(255,255,255,0.08);color:var(--text)}
+  .menu button svg{flex:0 0 auto}
+  .menu button.danger{color:#d37b5a}
+  .menu button.danger:hover{background:rgba(211,123,58,0.12);color:#e8926e}
+
+  #settingsPanel{min-width:250px}
+  .set-head{
+    color:var(--faint);font-size:11.5px;font-weight:700;letter-spacing:1px;
+    text-transform:uppercase;padding:8px 12px 6px;
+  }
+  .set-row{padding:4px 12px 10px}
+  .set-row label{
+    display:flex;justify-content:space-between;color:var(--dim);
+    font-size:13px;margin-bottom:7px;
+  }
+  .set-row label b{color:var(--text);font-weight:500}
+  .set-row input[type=range]{width:100%;accent-color:var(--send);cursor:pointer}
+  .menu hr{border:none;border-top:1px solid var(--border);margin:6px 8px}
+
+  .sheet-wrap{
+    position:absolute;inset:0;z-index:80;background:rgba(0,0,0,0.6);
+    display:flex;align-items:center;justify-content:center;padding:24px;
+    opacity:0;pointer-events:none;transition:opacity .2s;
+  }
+  .sheet-wrap.show{opacity:1;pointer-events:auto}
+  .sheet{
+    background:#232323;border:1px solid var(--border);border-radius:20px;
+    max-width:320px;width:100%;padding:22px;
+    transform:scale(.96);transition:transform .2s;
+  }
+  .sheet-wrap.show .sheet{transform:none}
+  .sheet h2{font-size:17px;color:var(--text);font-weight:700;margin-bottom:10px}
+  .sheet p{font-size:13.5px;color:var(--dim);line-height:1.65;margin-bottom:10px}
+  .sheet .ok-btn{
+    margin-top:14px;width:100%;border:none;border-radius:24px;padding:11px;
+    background:var(--send);color:#fff;font-family:inherit;font-size:14.5px;
+    font-weight:500;cursor:pointer;
+  }
+  .sheet .ok-btn:hover{background:var(--send-pressed)}
+  .sheet .ok-btn:disabled{background:#4a4642;cursor:default}
+
+  /* server setup fields */
+  .field{margin-bottom:12px}
+  .field label{display:block;color:var(--dim);font-size:12.5px;margin-bottom:6px;letter-spacing:.3px}
+  .field input{
+    width:100%;background:var(--bg);border:1px solid var(--border);border-radius:12px;
+    color:var(--text);font-family:inherit;font-size:14px;padding:11px 12px;outline:none;
+  }
+  .field input:focus{border-color:var(--send)}
+  .setup-err{color:#e08363;font-size:12.5px;line-height:1.5;margin-top:8px;min-height:16px}
+
+  .toast{
+    position:absolute;bottom:110px;left:50%;transform:translateX(-50%) translateY(8px);
+    background:#2e2e2e;color:var(--text);font-size:13px;font-family:inherit;
+    padding:9px 18px;border-radius:20px;opacity:0;pointer-events:none;
+    transition:opacity .2s,transform .2s;z-index:70;box-shadow:0 8px 24px rgba(0,0,0,.5);
+    max-width:86%;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+<div class="phone" id="phone">
+
+  <header class="topnav">
+    <button class="iconbtn" id="menuBtn" aria-label="Chat history">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <div class="statusdot error" id="statusDot" title="Not connected"></div>
+    <div class="title" id="chatTitle">Transformer</div>
+    <button class="iconbtn iconbtn--round" id="newChatBtn" aria-label="New chat">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </button>
+    <button class="iconbtn" id="dotsBtn" aria-label="Settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/>
+      </svg>
+    </button>
+  </header>
+
+  <main class="chat" id="chat">
+    <div class="hello" id="hello">
+      <div class="mark">T</div>
+      <h1>Chat with Transformer</h1>
+      <p>Answers come from the owner's server — nothing is generated on this device. History stays only here.</p>
+    </div>
+  </main>
+
+  <footer class="inputbar">
+    <div class="input-pill">
+      <input id="msgInput" type="text" placeholder="Message Transformer…" autocomplete="off" enterkeyhint="send" aria-label="Message">
+      <button class="sendbtn" id="sendBtn" aria-label="Send">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+        </svg>
+      </button>
+    </div>
+  </footer>
+
+  <div class="overlay" id="overlay"></div>
+
+  <aside class="drawer" id="drawer" aria-label="Chat history">
+    <div class="drawer-head">
+      <span class="brand">Chats</span>
+      <button class="close" id="drawerClose" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <button class="newchat" id="drawerNewChat">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      New chat
+    </button>
+    <div class="hist-label" id="pinLabel" hidden>Pinned</div>
+    <nav class="hist" id="pinList" hidden></nav>
+    <div class="hist-label">Recent</div>
+    <nav class="hist" id="hist"></nav>
+    <div class="foot">History is stored only in this browser's localStorage. Nothing is ever sent to a server except your current message.</div>
+  </aside>
+
+  <div class="menu" id="menu" role="menu">
+    <button role="menuitem" id="menuServer">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>
+      </svg>
+      Server settings
+    </button>
+    <button role="menuitem" id="menuSettings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      Generation settings
+    </button>
+    <button role="menuitem" id="menuAbout">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+      About
+    </button>
+  </div>
+
+  <div class="menu" id="settingsPanel">
+    <div class="set-head">Generation</div>
+    <div class="set-row">
+      <label>Creativity <b id="tempVal">0.8</b></label>
+      <input type="range" id="tempRange" min="0.1" max="1.5" step="0.05" value="0.8">
+    </div>
+    <div class="set-row">
+      <label>Variety (top-k) <b id="topkVal">40</b></label>
+      <input type="range" id="topkRange" min="1" max="100" step="1" value="40">
+    </div>
+    <div class="set-row">
+      <label>Reply length <b id="maxnewVal">220</b></label>
+      <input type="range" id="maxnewRange" min="60" max="500" step="20" value="220">
+    </div>
+    <hr>
+    <button class="danger" id="clearAllBtn">Clear all chats</button>
+  </div>
+
+  <!-- server setup -->
+  <div class="sheet-wrap" id="setupWrap">
+    <div class="sheet" role="dialog" aria-modal="true">
+      <h2 id="setupTitle">Connect to server</h2>
+      <p>The model runs on a private server. Enter its address and your API key.</p>
+      <div class="field">
+        <label for="cfgUrl">Server URL</label>
+        <input id="cfgUrl" type="url" placeholder="https://your-server.example.com" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="cfgKey">API key</label>
+        <input id="cfgKey" type="password" placeholder="API key" autocomplete="off">
+      </div>
+      <div class="setup-err" id="setupErr"></div>
+      <button class="ok-btn" id="cfgSave">Connect</button>
+    </div>
+  </div>
+
+  <!-- info sheet -->
+  <div class="sheet-wrap" id="sheetWrap">
+    <div class="sheet" role="dialog" aria-modal="true">
+      <h2 id="sheetTitle">About</h2>
+      <div id="sheetBody"></div>
+      <button class="ok-btn" id="sheetOk">OK</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Copied</div>
+</div>
+<div class="caption">Transformer — thin client · model on private server</div>
+
+<script src="app.js"></script>
+</body>
+</html>
