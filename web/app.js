@@ -219,18 +219,8 @@ async function runGeneration() {
     const d = document.createElement('div');
     d.className = 'msg-ai';
     const t = document.createElement('div'); t.className = 'ai-text';
-    const caret = document.createElement('span'); caret.className = 'caret';
+    t.textContent = result;
     d.appendChild(t); chatEl.appendChild(d);
-
-    /* stream visually at a pleasant pace regardless of length */
-    const chunk = Math.max(1, Math.ceil(result.length / 160));
-    for (let i = 0; i < result.length; i += chunk) {
-      t.textContent = result.slice(0, Math.min(result.length, i + chunk));
-      t.appendChild(caret);
-      scrollDown();
-      await new Promise(r => setTimeout(r, 9));
-    }
-    caret.remove();
 
     const a = document.createElement('div'); a.className = 'actions';
     a.innerHTML = `<button class="act" data-copy aria-label="Copy" title="Copy"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`;
@@ -379,11 +369,6 @@ function closeSheet() {
 }
 $('sheetOk').addEventListener('click', closeSheet);
 $('sheetWrap').addEventListener('click', e => { if (e.target === $('sheetWrap')) closeSheet(); });
-
-/* hello chips */
-$('hello').querySelectorAll('button[data-q]').forEach(b => {
-  b.addEventListener('click', () => { input.value = b.dataset.q; submit(); });
-});
 
 /* send / stop */
 sendBtn.addEventListener('click', () => {
