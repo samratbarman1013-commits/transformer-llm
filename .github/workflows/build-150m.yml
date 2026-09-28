@@ -36,7 +36,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: data
-          key: tinystories-bins-v1
+        key: tinystories-bins-v1
 
       - name: Prepare corpus (first run only)
         if: steps.datacache.outputs.cache-hit != 'true'
@@ -77,13 +77,12 @@ jobs:
         run: |
           echo "done=$(python3 -c "import json; print(json.load(open('ckpt/status.json')).get('phase') == 'done')")" >> "$GITHUB_OUTPUT"
 
-      - name: Publish release with the trained model
+      - name: Publish release (notes only — model stays private)
         if: steps.done.outputs.done == 'True'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create v0.2.0 \
-            --title "Transformer 150M — CI-trained" \
-            --notes "164,856,832-parameter model trained end-to-end on GitHub Actions runners (chunked, self-resuming chain). Includes model_best.pt and the 32k BPE tokenizer." \
-            --prerelease \
-            ckpt/model_best.pt data/tokenizer.json
+            --title "Transformer 150M — training complete" \
+            --notes "The chunked self-resuming chain finished all 2,000 steps. Model weights are intentionally NOT attached: the 164,856,832-parameter model is kept private and is downloaded from CI by the owner for the API server." \
+            --prerelease
