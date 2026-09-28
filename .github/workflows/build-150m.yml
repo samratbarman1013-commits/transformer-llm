@@ -79,16 +79,17 @@ jobs:
         run: |
           echo "done=$(python3 -c "import json; print(json.load(open('ckpt/status.json')).get('phase') == 'done')")" >> "$GITHUB_OUTPUT"
 
-      - name: Publish release (notes only — model stays private; idempotent so extended training can rerun)
+      - name: Publish release (notes only — model stays private; idempotent, tag follows steps target)
         if: steps.done.outputs.done == 'True'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view v0.2.0 >/dev/null 2>&1; then
-            echo "v0.2.0 already published — skipping"
+          if [ "${{ inputs.steps }}" = "6000" ]; then TAG=v0.3.0; TITLE="Transformer 150M — extended training complete"; else TAG=v0.2.0; TITLE="Transformer 150M — training complete"; fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already published — skipping"
           else
-            gh release create v0.2.0 \
-              --title "Transformer 150M — training complete" \
-              --notes "The chunked self-resuming chain finished all 2,000 steps. Model weights are intentionally NOT attached: the 164,856,832-parameter model is kept private and is downloaded from CI by the owner for the API server." \
+            gh release create "$TAG" \
+              --title "$TITLE" \
+              --notes "The chunked self-resuming chain finished its steps target. Model weights are intentionally NOT attached: the 164,856,832-parameter model is kept private and is downloaded from CI by the owner for the API server." \
               --prerelease
           fi
