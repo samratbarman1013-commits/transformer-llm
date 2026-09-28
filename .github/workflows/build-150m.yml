@@ -1,5 +1,4 @@
 name: Build Transformer 150M
-
 on:
   workflow_dispatch:
     inputs:
@@ -36,7 +35,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: data
-        key: tinystories-bins-v1
+          key: tinystories-bins-v1
 
       - name: Prepare corpus (first run only)
         if: steps.datacache.outputs.cache-hit != 'true'
