@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-SPECIALS = ["<|endoftext|>"]
+SPECIALS = [""]
 
 
 class BpeTokenizer:
@@ -70,6 +70,8 @@ def batched_read(f, chunk_chars: int):
         yield chunk
 
 
+ENCODE_PROGRESS_BYTES = 200_000_000  # print progress every ~200MB of text
+
 def encode_file(text_path: str, tokenizer_path: str, out_dir: str,
                 val_frac: float = 0.001):
     """Pre-tokenize corpus into train.bin / val.bin (uint16, memory-mappable).
@@ -77,6 +79,7 @@ def encode_file(text_path: str, tokenizer_path: str, out_dir: str,
     BPE merges never cross chunk boundaries."""
     t = BpeTokenizer(tokenizer_path)
     parts = []
+    total = last_p = 0
     with open(text_path, encoding="utf-8") as f:
         buf = []
         size = 0
@@ -85,9 +88,17 @@ def encode_file(text_path: str, tokenizer_path: str, out_dir: str,
             size += len(line)
             if size >= 2 << 20:  # ~2MB chunks (small for low-RAM machines)
                 parts.append(np.array(t.encode("".join(buf)), dtype=np.uint32))
+                total += size
                 buf, size = [], 0
+                if total - last_p >= ENCODE_PROGRESS_BYTES:
+                    last_p = total
+                    print(f"  tokenized {total/1e9:.1f} GB of text so far...")
         if buf:
             parts.append(np.array(t.encode("".join(buf)), dtype=np.uint32))
+    if not parts:
+        raise RuntimeError(
+            f"corpus file is empty or unreadable: {text_path} "
+            "(an earlier download was interrupted - delete the file and re-run the corpus cell)")
     ids = np.concatenate(parts)
     del parts
     assert t.vocab_size <= 65536, "vocab too large for uint16 storage"
