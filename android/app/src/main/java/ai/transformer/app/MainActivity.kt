@@ -7,19 +7,17 @@ import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * Transformer Android shell.
+ * Transformer Android shell — thin client.
  *
- * Loads the live web app (GitHub Pages). The 1M-parameter model itself runs
- * in the page via onnxruntime-web; chat history is stored in the WebView's
- * DOM storage — it stays on the device, exactly like in the browser.
- *
- * For a fully offline build: copy the contents of `web/` into
- * `app/src/main/assets/site/` and load "file:///android_asset/site/index.html".
+ * Loads the API app from GitHub Pages. No model is bundled or downloaded:
+ * all inference happens on the owner's private API server (online-only).
+ * Chat history lives in the WebView's DOM storage — it stays on the device.
  */
 class MainActivity : AppCompatActivity() {
 
     companion object {
-        const val APP_URL = "https://samratbarman1013-commits.github.io/transformer-llm/"
+        // Thin client: loads the API app (no model on device, online-only).
+        const val APP_URL = "https://samratbarman1013-commits.github.io/transformer-llm/app/"
     }
 
     private lateinit var web: WebView
