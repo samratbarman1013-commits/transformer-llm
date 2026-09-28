@@ -1,0 +1,53 @@
+name: Verify 150M model
+
+# Loads the packaged model bundle and generates real text, end-to-end through
+# the same code path the API server uses (transformer.infer_v2).
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Packaging run ID holding the model-150m-bundle artifact"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q -r requirements.txt
+
+      - name: Download model bundle
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run download "${{ inputs.run_id }}" --name model-150m-bundle --dir bundle
+
+      - name: Generate with the 150M model
+        run: |
+          python - <<'PY'
+          from transformer.infer_v2 import load, reply
+          model, tok, eos_id, cfg, vs = load("bundle/model_best.pt", "bundle/tokenizer.json")
+          print(f"[verify] loaded config={cfg} vocab_size={vs} params={model.num_params():,}")
+          prompts = [
+              "Once upon a time there was a little girl named Mia.",
+              "Tom and Lily went to the park. They saw a",
+              "User: What is your favorite animal?\nTransformer:",
+          ]
+          for p in prompts:
+              print("=" * 60)
+              print("PROMPT:", p)
+              print("OUTPUT:", reply(model, tok, eos_id, p, max_new=80))
+          print("=" * 60)
+          print("[verify] OK — model generates text")
+          PY
