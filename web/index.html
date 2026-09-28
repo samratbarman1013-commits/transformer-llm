@@ -107,11 +107,6 @@
     color:var(--text);font-size:16px;font-weight:500;line-height:1.5;
     max-width:92%;overflow-wrap:break-word;white-space:pre-wrap;
   }
-  .ai-text .caret{
-    display:inline-block;width:9px;height:17px;background:var(--send);
-    vertical-align:-2px;margin-left:2px;border-radius:2px;animation:blinkc 1s infinite;
-  }
-  @keyframes blinkc{50%{opacity:0}}
   .actions{display:flex;gap:4px;margin-top:2px}
   .actions .act{
     display:flex;align-items:center;justify-content:center;
@@ -141,13 +136,6 @@
   }
   .hello h1{font-size:22px;font-weight:700;color:var(--text);margin-bottom:8px}
   .hello p{color:var(--dim);font-size:13.5px;line-height:1.6;max-width:300px}
-  .hello .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:22px}
-  .hello .chips button{
-    border:1px solid var(--border);background:var(--surface);color:var(--dim);
-    border-radius:99px;padding:8px 14px;font-size:12.5px;font-family:inherit;cursor:pointer;
-    transition:border-color .15s,color .15s;
-  }
-  .hello .chips button:hover{border-color:var(--send);color:var(--text)}
 
   /* ---------- Input bar ---------- */
   .inputbar{
@@ -339,11 +327,6 @@
       <div class="mark">T</div>
       <h1>Chat with Transformer</h1>
       <p>A real language model running entirely in your browser — nothing is uploaded, history stays on this device.</p>
-      <div class="chips">
-        <button data-q="Once upon a time">Once upon a time…</button>
-        <button data-q="Write a line of dialogue for a story">Write a story line</button>
-        <button data-q="Tell me about yourself">Tell me about yourself</button>
-      </div>
     </div>
   </main>
 
