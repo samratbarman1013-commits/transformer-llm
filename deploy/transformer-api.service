@@ -1,0 +1,13 @@
+[Unit]
+Description=Transformer API server (private model)
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/transformer-api
+Environment=TRANSFORMER_API_KEY=CHANGE_ME_BEFORE_START
+ExecStart=/opt/transformer-api/.venv/bin/uvicorn server.app:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
