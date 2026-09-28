@@ -21,8 +21,9 @@ PROTO_1M = ModelConfig(name="proto-1m", d_model=128, n_layers=5, n_heads=4, ctx=
 SMALL_15M = ModelConfig(name="small-15m", d_model=384, n_layers=8, n_heads=6, ctx=512)
 BASE_50M = ModelConfig(name="base-50m", d_model=512, n_layers=16, n_heads=8, ctx=1024)
 TARGET_500M = ModelConfig(name="target-500m", d_model=1024, n_layers=40, n_heads=16, ctx=2048)
+TARGET_550M = ModelConfig(name="target-550m", d_model=1280, n_layers=26, n_heads=20, ctx=1024)
 # Max that fits a free GitHub Actions runner (7-16 GB, CPU) with fp32 AdamW
 CI_150M = ModelConfig(name="ci-150m", d_model=896, n_layers=14, n_heads=14, ctx=512)
 CI_300M = ModelConfig(name="ci-300m", d_model=1152, n_layers=18, n_heads=18, ctx=512)
 
-CONFIGS = {c.name: c for c in (PROTO_1M, SMALL_15M, BASE_50M, CI_150M, CI_300M, TARGET_500M)}
+CONFIGS = {c.name: c for c in (PROTO_1M, SMALL_15M, BASE_50M, TARGET_500M, TARGET_550M, CI_150M, CI_300M)}
