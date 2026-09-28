@@ -1,0 +1,46 @@
+name: Package 150M model
+
+# One-shot helper: takes the `ckpt` artifact from a training run and produces a
+# clean `model-150m-bundle` artifact with exactly what the PC / API server needs:
+#   model_best.pt   (the trained weights)
+#   tokenizer.json  (the 32k BPE tokenizer, restored from the corpus cache)
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Training run ID whose ckpt artifact should be packaged"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download checkpoint artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run download "${{ inputs.run_id }}" --name ckpt --dir ckpt
+
+      - name: Restore corpus cache (for the tokenizer)
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: tinystories-bins-v1
+
+      - name: Assemble model bundle
+        run: |
+          mkdir -p bundle
+          cp ckpt/model_best.pt bundle/model_best.pt
+          cp data/tokenizer.json bundle/tokenizer.json
+          ls -la bundle/
+
+      - name: Upload model bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-150m-bundle
+          path: bundle

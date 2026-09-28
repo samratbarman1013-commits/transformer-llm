@@ -65,6 +65,9 @@ jobs:
             --max-seconds 18000 \
             --status-out ckpt/status.json
 
+      - name: Bundle tokenizer into the checkpoint artifact
+        run: cp data/tokenizer.json ckpt/tokenizer.json
+
       - name: Upload checkpoint for the next chunk
         uses: actions/upload-artifact@v4
         with:
@@ -76,12 +79,16 @@ jobs:
         run: |
           echo "done=$(python3 -c "import json; print(json.load(open('ckpt/status.json')).get('phase') == 'done')")" >> "$GITHUB_OUTPUT"
 
-      - name: Publish release (notes only — model stays private)
+      - name: Publish release (notes only — model stays private; idempotent so extended training can rerun)
         if: steps.done.outputs.done == 'True'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v0.2.0 \
-            --title "Transformer 150M — training complete" \
-            --notes "The chunked self-resuming chain finished all 2,000 steps. Model weights are intentionally NOT attached: the 164,856,832-parameter model is kept private and is downloaded from CI by the owner for the API server." \
-            --prerelease
+          if gh release view v0.2.0 >/dev/null 2>&1; then
+            echo "v0.2.0 already published — skipping"
+          else
+            gh release create v0.2.0 \
+              --title "Transformer 150M — training complete" \
+              --notes "The chunked self-resuming chain finished all 2,000 steps. Model weights are intentionally NOT attached: the 164,856,832-parameter model is kept private and is downloaded from CI by the owner for the API server." \
+              --prerelease
+          fi
