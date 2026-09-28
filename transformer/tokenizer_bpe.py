@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-SPECIALS = [""]
+SPECIALS = ["<|endoftext|>"]
 
 
 class BpeTokenizer:
