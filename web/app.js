@@ -8,7 +8,7 @@ const chatEl = $('chat'), input = $('msgInput'), sendBtn = $('sendBtn'),
       toast = $('toast'), statusDot = $('statusDot');
 
 let session = null, vocab = null, itos = [], stoi = {};
-let busy = false;
+let busy = false, stopRequested = false, tyEl = null, lastGenError = 0;
 
 /* ---------- persistence (on-device only) ---------- */
 const LS_CHATS = 'transformer.chats.v2';
@@ -93,6 +93,18 @@ function addMsg(role, text, persist = true) {
 
 function scrollDown() { chatEl.scrollTop = chatEl.scrollHeight; }
 
+/* single shared typing indicator */
+function showTyping() {
+  if (!tyEl) {
+    tyEl = document.createElement('div');
+    tyEl.className = 'typing';
+    tyEl.innerHTML = '<span></span><span></span><span></span>';
+    chatEl.appendChild(tyEl);
+  }
+  scrollDown();
+}
+function hideTyping() { if (tyEl) { tyEl.remove(); tyEl = null; } }
+
 /* ---------- model loading ---------- */
 async function loadModel() {
   try {
@@ -103,10 +115,15 @@ async function loadModel() {
       { executionProviders: ['wasm'] });
     statusDot.className = 'statusdot ready';
     statusDot.title = 'Model ready — runs on your device';
-    sendBtn.disabled = false;
+    hideTyping();
+    maybeAutoContinue();
   } catch (e) {
     statusDot.className = 'statusdot error';
     statusDot.title = 'Model failed to load';
+    hideTyping();
+    openSheet('Could not load the model', `
+      <p>The model file (~4 MB) could not be downloaded. Check your connection and reload the page.</p>
+      <p>If you are offline, load the page once while online — after that it works offline.</p>`);
     console.error(e);
   }
 }
@@ -139,6 +156,7 @@ async function generate(prompt, maxNew) {
   let text = '';
   const stops = ['\nUser:', '\nTransformer:'];
   for (let i = 0; i < maxNew; i++) {
+    if (stopRequested) break;
     const t = await nextToken(ids);
     ids.push(t);
     text += itos[t];
@@ -149,54 +167,90 @@ async function generate(prompt, maxNew) {
 }
 
 /* ---------- chat wiring ---------- */
+function setBusyUI(b) {
+  busy = b;
+  sendBtn.innerHTML = b
+    ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>'
+    : '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+  sendBtn.title = b ? 'Stop generating' : 'Send';
+  sendBtn.setAttribute('aria-label', b ? 'Stop generating' : 'Send');
+}
+
+/* run a reply for the last unanswered user message, if the model is ready */
+function maybeAutoContinue() {
+  if (busy || !session || !cur) return;
+  if (Date.now() - lastGenError < 5000) return; /* don't retry-loop on errors */
+  const last = cur.log[cur.log.length - 1];
+  if (last && last.role === 'user') runGeneration();
+}
+
 async function submit() {
   const text = input.value.trim();
-  if (!text || busy || !session) return;
+  if (!text) return;
+  input.value = '';
   if (!cur) newChat();
   if (cur.log.length === 0) {
     cur.title = text.slice(0, 40);
     $('chatTitle').textContent = cur.title;
     saveChats(); renderDrawer();
   }
-  input.value = '';
   addMsg('user', text);
-  busy = true; sendBtn.disabled = true;
+
+  if (busy) { showToast('Queued — will answer after this reply'); return; }
+  if (!session) {
+    showTyping();
+    showToast('Model is loading — reply will come automatically');
+    return;
+  }
+  runGeneration();
+}
+
+async function runGeneration() {
+  setBusyUI(true);
+  stopRequested = false;
+  showTyping();
 
   const history = cur.log.map(m => (m.role === 'user' ? 'User: ' : 'Transformer:') + ' ' + m.text).join('\n');
 
-  /* typing indicator while the model computes */
-  const ty = document.createElement('div');
-  ty.className = 'typing'; ty.innerHTML = '<span></span><span></span><span></span>';
-  chatEl.appendChild(ty); scrollDown();
-
   try {
     const result = await generate(history + '\nTransformer:', settings.maxnew);
-    ty.remove();
+    hideTyping();
+
     const d = document.createElement('div');
     d.className = 'msg-ai';
     const t = document.createElement('div'); t.className = 'ai-text';
     const caret = document.createElement('span'); caret.className = 'caret';
     d.appendChild(t); chatEl.appendChild(d);
-    for (const ch of result) {
-      t.textContent += ch;
+
+    /* stream visually at a pleasant pace regardless of length */
+    const chunk = Math.max(1, Math.ceil(result.length / 160));
+    for (let i = 0; i < result.length; i += chunk) {
+      t.textContent = result.slice(0, Math.min(result.length, i + chunk));
       t.appendChild(caret);
       scrollDown();
-      await new Promise(r => setTimeout(r, 10));
+      await new Promise(r => setTimeout(r, 9));
     }
     caret.remove();
+
     const a = document.createElement('div'); a.className = 'actions';
     a.innerHTML = `<button class="act" data-copy aria-label="Copy" title="Copy"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`;
     a.querySelector('button').dataset.copy = result;
     d.appendChild(a);
-    cur.log.push({ role: 'ai', text: result }); saveChats();
-    if (cur.title === 'New chat') { cur.title = result.slice(0, 40) || 'New chat'; renderDrawer(); }
+
+    if (result) {
+      cur.log.push({ role: 'ai', text: result }); saveChats();
+      if (cur.title === 'New chat') { cur.title = result.slice(0, 40) || 'New chat'; renderDrawer(); }
+    }
   } catch (e) {
-    ty.remove();
+    hideTyping();
+    lastGenError = Date.now();
     addMsg('ai', 'generation error: ' + e.message, false);
     console.error(e);
   }
-  busy = false; sendBtn.disabled = false;
+  setBusyUI(false);
   scrollDown();
+  /* answer any message the user queued while we were busy */
+  maybeAutoContinue();
 }
 
 /* ---------- UI: drawer / menus / toast / sheet ---------- */
@@ -331,8 +385,11 @@ $('hello').querySelectorAll('button[data-q]').forEach(b => {
   b.addEventListener('click', () => { input.value = b.dataset.q; submit(); });
 });
 
-/* send */
-sendBtn.addEventListener('click', submit);
+/* send / stop */
+sendBtn.addEventListener('click', () => {
+  if (busy) { stopRequested = true; showToast('Stopping…'); }
+  else submit();
+});
 input.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
 });
