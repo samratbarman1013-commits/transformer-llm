@@ -1,0 +1,96 @@
+name: Build Transformer 300M
+
+on:
+  workflow_dispatch:
+    inputs:
+      resume_run_id:
+        description: "Run ID of the previous chunk (empty for chunk 1)"
+        required: false
+        default: ""
+      steps:
+        description: "Total training steps target"
+        required: false
+        default: "6000"
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps (CPU torch)
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q -r requirements.txt
+
+      - name: Restore corpus cache
+        id: datacache
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: tinystories-bins-v1
+
+      - name: Prepare corpus (first run only)
+        if: steps.datacache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p data
+          curl -sL "https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-train.txt" -o data/ts.txt
+          python -m transformer.tokenizer_bpe --train data/ts.txt --out data/tokenizer.json --vocab-size 32768
+          python -m transformer.tokenizer_bpe --encode data/ts.txt --tokenizer data/tokenizer.json --out-dir data/bins --val-frac 0.001
+          rm data/ts.txt   # keep the cache lean: bins only
+
+      - name: Restore checkpoint from previous chunk
+        if: inputs.resume_run_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run download "${{ inputs.resume_run_id }}" --name ckpt --dir ckpt
+
+      - name: Train chunk (auto-resumes from checkpoint)
+        run: |
+          python -m transformer.train_v2 \
+            --config ci-300m \
+            --data data/bins \
+            --out ckpt \
+            --steps "${{ inputs.steps }}" \
+            --batch 4 --grad-accum 2 --ctx 512 \
+            --lr 3e-4 --warmup 50 \
+            --eval-every 50 \
+            --max-seconds 18000 \
+            --status-out ckpt/status.json
+
+      - name: Bundle tokenizer into the checkpoint artifact
+        run: cp data/tokenizer.json ckpt/tokenizer.json
+
+      - name: Upload checkpoint for the next chunk
+        uses: actions/upload-artifact@v4
+        with:
+          name: ckpt
+          path: ckpt
+
+      - name: Check if training is complete
+        id: done
+        run: |
+          echo "done=$(python3 -c "import json; print(json.load(open('ckpt/status.json')).get('phase') == 'done')")" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release (notes only — model stays private; idempotent, tag follows steps target)
+        if: steps.done.outputs.done == 'True'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=v0.4.0; TITLE="Transformer 300M — training complete"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already published — skipping"
+          else
+            gh release create "$TAG" \
+              --title "$TITLE" \
+              --notes "The 300M-class model (ci-300m, ~325M parameters) finished its steps target on the free GitHub Actions chain. Model weights are intentionally NOT attached: they are kept private and downloaded from CI by the owner for the API server." \
+              --prerelease
+          fi
