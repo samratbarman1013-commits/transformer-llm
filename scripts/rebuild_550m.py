@@ -1,6 +1,6 @@
 """Upgrade the 550M notebook's corpus to a higher-quality, Qwen-style English mix.
 
-Keeps everything else in the notebook untouched; only cell 3 (corpus) is rewritten:
+Only the corpus description (cell 0) and the corpus cell (cell 3) are rewritten:
   wikipedia (encyclopedic, ~4 GB)
   + cosmopedia 'web_samples_v2' (synthetic textbooks/educational, ~2 GB)
   + finemath 'finemath-4plus' (curated math/reasoning, ~0.5 GB)
@@ -99,12 +99,17 @@ assert 'wikimedia/wikipedia' in c3, 'cell 3 is not the expected corpus cell'
 assert 'TinyStories' in c3, 'TinyStories block not found - notebook changed'
 set_src(nb['cells'][3], NEW_C3)
 
+OLD_LINE = ('Quality English corpus: **English Wikipedia (~5 GB) + Python code (~1.5 GB) '
+            '+ TinyStories (~1 GB)**.')
+NEW_LINE = ('Quality English corpus: **Wikipedia (~4 GB) + Cosmopedia textbooks (~2 GB) '
+            '+ FineMath (~0.5 GB) + Python code (~1.5 GB)**.')
 c0 = ''.join(nb['cells'][0]['source'])
-assert 'English Wikipedia' in c0, 'cell 0 markdown unexpected'
-c0 = c0.replace('English Wikipedia', 'high-quality English mix (Wikipedia + Cosmopedia + FineMath + code)')
+assert OLD_LINE in c0, 'cell 0 corpus line not found'
+c0 = c0.replace(OLD_LINE, NEW_LINE)
 set_src(nb['cells'][0], c0)
 
 out = json.dumps(nb, indent=1)
-assert 'cosmopedia' in out and 'finemath' in out and 'TinyStories' not in out, 'corpus swap failed'
+assert 'cosmopedia' in out and 'finemath' in out, 'corpus swap failed'
+assert 'TinyStories' not in out, 'TinyStories still present in notebook'
 open('notebooks/train_500m_colab.ipynb', 'w').write(out)
 print('notebook rebuilt with high-quality English corpus mix')
