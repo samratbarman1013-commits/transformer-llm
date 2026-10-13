@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   train:
@@ -123,3 +124,14 @@ jobs:
               --notes "The 300M-class model (ci-300m, ~325M parameters) trained on a code-focused corpus (85% Python code + 15% stories) finished its steps target on the free GitHub Actions chain. Model weights are intentionally NOT attached: they are kept private and downloaded from CI by the owner for the API server." \
               --prerelease
           fi
+
+      - name: Chain the next chunk (self-dispatch, unattended)
+        if: steps.done.outcome == 'success' && steps.done.outputs.done != 'True'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "chunk incomplete - dispatching the next chunk (resume from ${{ github.run_id }})"
+          gh api "repos/${{ github.repository }}/actions/workflows/build-300m.yml/dispatches" \
+            -f ref=main \
+            -f "inputs[resume_run_id]=${{ github.run_id }}" \
+            -f "inputs[steps]=6000"
